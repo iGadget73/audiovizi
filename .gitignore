@@ -1,0 +1,13 @@
+# .gitignore für Python-Projekte
+
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+dist/
+build/
+.env
+.venv/
+venv/
+*.sqlite3
+*.log
