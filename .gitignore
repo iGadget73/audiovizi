@@ -1,13 +1,23 @@
-# .gitignore für Python-Projekte
-
+# Python
 __pycache__/
 *.py[cod]
+*.pyc
 *.egg
 *.egg-info/
-dist/
-build/
+*.so
+*.log
+*.sqlite3
+
+# Virtual Environments
 .env
 .venv/
 venv/
-*.sqlite3
-*.log
+
+# Build & Distribution
+build/
+dist/
+*.zip
+*.app
+
+# macOS
+.DS_Store
