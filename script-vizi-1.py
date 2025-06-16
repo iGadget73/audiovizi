@@ -95,7 +95,6 @@ class PCMVisualizerApp(QWidget):
         super().__init__()
         self.setWindowTitle("PCM Audio Visualizer - Time Zoom + Vertical Padding + Cursor")
         self.setGeometry(100, 100, 650, 350)
-        self.setFixedSize(650, 350)
 
         self.capture_thread = None
         self.running = False
