@@ -94,7 +94,8 @@ class PCMVisualizerApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PCM Audio Visualizer - Time Zoom + Vertical Padding + Cursor")
-        self.setGeometry(100, 100, 900, 500)
+        self.setGeometry(100, 100, 650, 350)
+        self.setFixedSize(650, 350)
 
         self.capture_thread = None
         self.running = False
@@ -107,7 +108,7 @@ class PCMVisualizerApp(QWidget):
         self.block_size = 1024
 
         # --- Visual-Einstellungen ---
-        self.amplitude_factor = 1.0
+        self.amplitude_factor = 5.0
         self.time_zoom_factor = 1.0
         self.vertical_padding_factor = 0.0
 
@@ -116,6 +117,7 @@ class PCMVisualizerApp(QWidget):
 
         # --- GUI ---
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
         # 1) Audio-Quelle
         source_layout = QHBoxLayout()
@@ -136,12 +138,12 @@ class PCMVisualizerApp(QWidget):
         amp_layout = QVBoxLayout()
         amp_label = QLabel("Amplitude")
         amp_layout.addWidget(amp_label)
-        self.amp_slider = ResettableSlider(Qt.Orientation.Horizontal, default_value=100)
+        self.amp_slider = ResettableSlider(Qt.Orientation.Horizontal, default_value=50)
         self.amp_slider.setRange(1, 200)
-        self.amp_slider.setValue(100)
         self.amp_slider.valueChanged.connect(self.on_amp_changed)
+        self.amp_slider.setValue(50)
         amp_layout.addWidget(self.amp_slider)
-        self.amp_value_label = QLabel("8.00")
+        self.amp_value_label = QLabel("5.00")
         amp_layout.addWidget(self.amp_value_label)
         sliders_layout.addLayout(amp_layout)
 
@@ -185,6 +187,11 @@ class PCMVisualizerApp(QWidget):
         self.wave_color_dropdown.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for name, code in self.settings.wave_color_map.items():
             self.wave_color_dropdown.addItem(name, code)
+        # "Gelb" als Standard auswählen, falls vorhanden
+        for i in range(self.wave_color_dropdown.count()):
+            if self.wave_color_dropdown.itemText(i) == "Gelb":
+                self.wave_color_dropdown.setCurrentIndex(i)
+                break
         self.wave_color_dropdown.currentIndexChanged.connect(self.on_wave_color_changed)
         wave_color_layout.addWidget(self.wave_color_dropdown)
         colors_layout.addLayout(wave_color_layout)
@@ -228,6 +235,7 @@ class PCMVisualizerApp(QWidget):
 
         # 5) Plot
         self.plot_widget = pg.PlotWidget()
+        self.plot_widget.setStyleSheet("border: none;")
         self.plot_widget.hideAxis("bottom")
         self.plot_widget.hideAxis("left")
         self.plot_widget.setBackground(self.settings.bg_color)
@@ -267,7 +275,7 @@ class PCMVisualizerApp(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
         # Update-Intervall leicht erhöht für geringere CPU-Last
-        self.timer.start(100)
+        self.timer.start(30)
 
         self.setLayout(main_layout)
 
