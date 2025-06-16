@@ -139,11 +139,12 @@ class PCMVisualizerApp(QWidget):
         amp_layout.addWidget(amp_label)
         self.amp_slider = ResettableSlider(Qt.Orientation.Horizontal, default_value=50)
         self.amp_slider.setRange(1, 200)
-        self.amp_slider.valueChanged.connect(self.on_amp_changed)
-        self.amp_slider.setValue(50)
         amp_layout.addWidget(self.amp_slider)
         self.amp_value_label = QLabel("5.00")
         amp_layout.addWidget(self.amp_value_label)
+        # erst Label da, dann verbinden und initial setzen
+        self.amp_slider.valueChanged.connect(self.on_amp_changed)
+        self.amp_slider.setValue(50)
         sliders_layout.addLayout(amp_layout)
 
         # Time Zoom
