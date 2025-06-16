@@ -2,13 +2,12 @@ import sys
 import subprocess
 import numpy as np
 import re
-import threading
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QComboBox, QLabel, QSlider, QCheckBox
 )
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal
 import pyqtgraph as pg
 import shutil
 ffmpeg_path = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
@@ -53,13 +52,51 @@ class ResettableSlider(QSlider):
         self.setValue(self.default_value)
 
 
+class AudioCaptureThread(QThread):
+    """Thread, der kontinuierlich Audiodaten von ffmpeg liest."""
+
+    data_ready = pyqtSignal(object)
+
+    def __init__(self, source, sample_rate, block_size):
+        super().__init__()
+        self.source = source
+        self.sample_rate = sample_rate
+        self.block_size = block_size
+        self.running = True
+
+    def run(self):
+        ffmpeg_cmd = [
+            ffmpeg_path,
+            "-f", "avfoundation",
+            "-i", self.source,
+            "-ac", "1",
+            "-ar", str(self.sample_rate),
+            "-f", "f32le",
+            "pipe:"
+        ]
+        process = subprocess.Popen(
+            ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        bytes_per_sample = 4
+        while self.running:
+            raw_data = process.stdout.read(self.block_size * bytes_per_sample)
+            if not raw_data or len(raw_data) < self.block_size * bytes_per_sample:
+                break
+            chunk = np.frombuffer(raw_data, dtype=np.float32)
+            self.data_ready.emit(chunk)
+        process.terminate()
+
+    def stop(self):
+        self.running = False
+
+
 class PCMVisualizerApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PCM Audio Visualizer - Time Zoom + Vertical Padding + Cursor")
         self.setGeometry(100, 100, 900, 500)
 
-        self.process = None
+        self.capture_thread = None
         self.running = False
 
         # --- Audio-Puffer ---
@@ -229,7 +266,8 @@ class PCMVisualizerApp(QWidget):
         # 6) Timer
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
-        self.timer.start(50)
+        # Update-Intervall leicht erhöht für geringere CPU-Last
+        self.timer.start(100)
 
         self.setLayout(main_layout)
 
@@ -288,41 +326,31 @@ class PCMVisualizerApp(QWidget):
             )
 
     def start_visualizer(self):
-        if (self.audio_dropdown.currentText()
+        if (
+            self.audio_dropdown.currentText()
             and "No Audio Devices" not in self.audio_dropdown.currentText()
-            and "Error:" not in self.audio_dropdown.currentText()):
+            and "Error:" not in self.audio_dropdown.currentText()
+        ):
             self.running = True
             source = self.audio_dropdown.currentData()
-            self.thread = threading.Thread(target=self.run_visualizer, args=(source,))
-            self.thread.start()
+            self.capture_thread = AudioCaptureThread(
+                source, self.sample_rate, self.block_size
+            )
+            self.capture_thread.data_ready.connect(self.update_audio_buffer)
+            self.capture_thread.start()
         else:
             print("Kein gültiges Audio-Device ausgewählt.")
 
-    def run_visualizer(self, source):
-        ffmpeg_path = "/opt/homebrew/bin/ffmpeg"
-        ffmpeg_cmd = [
-            ffmpeg_path,
-            "-f", "avfoundation",
-            "-i", source,
-            "-ac", "1",
-            "-ar", str(self.sample_rate),
-            "-f", "f32le",
-            "pipe:"
-        ]
-        self.process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        bytes_per_sample = 4
-        while self.running:
-            raw_data = self.process.stdout.read(self.block_size * bytes_per_sample)
-            if not raw_data or len(raw_data) < self.block_size * bytes_per_sample:
-                break
-            chunk = np.frombuffer(raw_data, dtype=np.float32)
-            self.audio_data = np.roll(self.audio_data, -len(chunk))
-            self.audio_data[-len(chunk):] = chunk
-        if self.process:
-            self.process.terminate()
+    def update_audio_buffer(self, chunk):
+        self.audio_data = np.roll(self.audio_data, -len(chunk))
+        self.audio_data[-len(chunk):] = chunk
 
     def stop_visualizer(self):
         self.running = False
+        if self.capture_thread:
+            self.capture_thread.stop()
+            self.capture_thread.wait()
+            self.capture_thread = None
 
     # -----------------------------------------------------------------------
     # Plot-Update
